@@ -39,18 +39,12 @@ export interface IPoster extends Document {
 
 const PosterSchema = new Schema<IPoster>(
   {
-    // =========================
-    // USER
-    // =========================
-    userId: {
+   userId: {
   type: String,
   default: null,
   index: true,
 },
 
-    // =========================
-    // BASIC INFORMATION
-    // =========================
     name: {
       type: String,
       required: true,
@@ -87,33 +81,21 @@ const PosterSchema = new Schema<IPoster>(
       trim: true,
     },
 
-    // =========================
-    // UPLOADED IMAGES
-    // =========================
     images: {
       type: [String],
       default: [],
     },
 
-    // =========================
-    // GENERATED IMAGE
-    // =========================
     generatedImageUrl: {
       type: String,
       default: "",
     },
 
-    // =========================
-    // AI MODEL
-    // =========================
     aiModel: {
       type: String,
       default: "",
     },
 
-    // =========================
-    // AI DESIGN
-    // =========================
     aiDesign: {
       background: {
         type: String,
@@ -156,9 +138,6 @@ const PosterSchema = new Schema<IPoster>(
       },
     },
 
-    // =========================
-    // STATUS
-    // =========================
     status: {
       type: String,
       enum: [
@@ -170,9 +149,6 @@ const PosterSchema = new Schema<IPoster>(
       default: "completed",
     },
 
-    // =========================
-    // CREATED AT
-    // =========================
     createdAt: {
       type: Date,
       default: Date.now,

@@ -6,7 +6,8 @@ import cors from "cors";
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import { GoogleGenAI } from "@google/genai";
-import { Poster } from "./models/Poster.js";
+import { Poster } from "./models/Poster";
+import { Template } from "./models/Tamplate";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -49,7 +50,6 @@ const mongoUri = process.env.MONGODB_URI;
 if (!mongoUri) {
   console.warn("⚠️ MONGODB_URI is missing in .env");
 }
-
 
 async function generateAILayoutAndContent(formData: {
   name: string;
@@ -130,12 +130,130 @@ No extra text or markdown formatting outside JSON.
   }
 }
 
-
 app.get("/", (_req: Request, res: Response): void => {
   res.json({
     success: true,
     message: "AI Poster API is running",
   });
+});
+
+app.get("/api/templates", async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const templates = await Template.find({ isActive: true }).sort({ createdAt: -1 });
+    res.status(200).json({
+      success: true,
+      data: templates,
+    });
+  } catch (error: any) {
+    console.error("❌ Get templates error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch templates",
+    });
+  }
+});
+
+app.get("/api/templates/user/:userId", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+      return;
+    }
+
+    // ডেটাবেজ থেকে নির্দিষ্ট userId এর সব টেমপ্লেট খোঁজা (তৈরি হওয়ার উল্টো ক্রমানুসারে অর্থাৎ লেটেস্টগুলো আগে দেখাবে)
+    const templates = await Template.find({ userId: userId.trim() }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: templates.length,
+      message: "Templates fetched successfully",
+      data: templates,
+    });
+  } catch (error: any) {
+    console.error("❌ Get templates by user error:", error?.message || error);
+    res.status(500).json({
+      success: false,
+      message: error?.message || "Failed to fetch templates",
+    });
+  }
+});
+
+app.post("/api/templates", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const {
+      title,
+      userId,
+      category,
+      defaultHeadline,
+      defaultSubHeadline,
+      defaultDesc,
+      borderColor,
+      badgeBg,
+      badgeText,
+      accentColor,
+      gradient,
+      generatedImageUrl,
+    } = req.body;
+
+    const newTemplate = await Template.create({
+      title: title ? title.trim() : "Untitled Template",
+      userId: userId ? userId.trim() : "guest-user", 
+      category: category ? category.trim() : "General",
+      defaultHeadline: defaultHeadline ? defaultHeadline.trim() : "",
+      defaultSubHeadline: defaultSubHeadline ? defaultSubHeadline.trim() : "",
+      defaultDesc: defaultDesc ? defaultDesc.trim() : "",
+      borderColor: borderColor || "#000000",
+      badgeBg: badgeBg || "",
+      badgeText: badgeText || "",
+      accentColor: accentColor || "",
+      gradient: gradient || "",
+      generatedImageUrl: generatedImageUrl || "",
+      isActive: true,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Template created successfully",
+      data: newTemplate,
+    });
+  } catch (error: any) {
+    console.error("❌ Create template error:", error?.message || error);
+    res.status(500).json({
+      success: false,
+      message: error?.message || "Failed to create template",
+    });
+  }
+});
+
+app.delete("/api/templates/:id", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id;
+    const template = await Template.findByIdAndDelete(id);
+
+    if (!template) {
+      res.status(404).json({
+        success: false,
+        message: "Template not found",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Template deleted successfully",
+    });
+  } catch (error: any) {
+    console.error("❌ Delete template error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete template",
+    });
+  }
 });
 
 app.post("/api/upload", upload.single("image"), async (req: Request, res: Response): Promise<void> => {
@@ -348,7 +466,7 @@ app.post("/api/posters/generate", async (req: Request, res: Response): Promise<v
 
 app.post("/api/posters/save", async (req: Request, res: Response): Promise<void> => {
   try {
-    const { userId, formData, photos, createdAt  } = req.body;
+    const { userId, formData, photos, createdAt } = req.body;
 
     if (typeof userId !== "string" || !userId.trim()) {
       res.status(400).json({ success: false, message: "Valid userId is required" });
