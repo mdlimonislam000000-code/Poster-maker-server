@@ -165,8 +165,8 @@ app.get("/api/templates/user/:userId", async (req: Request, res: Response): Prom
       return;
     }
 
-    // ডেটাবেজ থেকে নির্দিষ্ট userId এর সব টেমপ্লেট খোঁজা (তৈরি হওয়ার উল্টো ক্রমানুসারে অর্থাৎ লেটেস্টগুলো আগে দেখাবে)
-    const templates = await Template.find({ userId: userId.trim() }).sort({ createdAt: -1 });
+    const cleanUserId = typeof userId === "string" ? userId.trim() : String(userId || "");
+    const templates = await Template.find({ userId: cleanUserId }).sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -202,7 +202,7 @@ app.post("/api/templates", async (req: Request, res: Response): Promise<void> =>
 
     const newTemplate = await Template.create({
       title: title ? title.trim() : "Untitled Template",
-      userId: userId ? userId.trim() : "guest-user", 
+      userId: userId ? userId.trim() : "guest-user",
       category: category ? category.trim() : "General",
       defaultHeadline: defaultHeadline ? defaultHeadline.trim() : "",
       defaultSubHeadline: defaultSubHeadline ? defaultSubHeadline.trim() : "",
@@ -466,7 +466,8 @@ app.post("/api/posters/generate", async (req: Request, res: Response): Promise<v
 
 app.post("/api/posters/save", async (req: Request, res: Response): Promise<void> => {
   try {
-    const { userId, formData, photos, createdAt } = req.body;
+    // 1. generatedImageUrl এবং layoutTheme রিকোয়েস্ট বডি থেকে রিসিভ করুন
+    const { userId, formData, photos, generatedImageUrl, layoutTheme, createdAt } = req.body;
 
     if (typeof userId !== "string" || !userId.trim()) {
       res.status(400).json({ success: false, message: "Valid userId is required" });
@@ -484,6 +485,7 @@ app.post("/api/posters/save", async (req: Request, res: Response): Promise<void>
     const location = typeof formData.location === "string" ? formData.location.trim() : "";
     const occasionType = typeof formData.occasionType === "string" ? formData.occasionType.trim() : "";
     const headlineText = typeof formData.headlineText === "string" ? formData.headlineText.trim() : "";
+    const theme = typeof layoutTheme === "string" ? layoutTheme.trim() : "default-theme";
 
     if (!name) {
       res.status(400).json({ success: false, message: "Name is required" });
@@ -495,7 +497,8 @@ app.post("/api/posters/save", async (req: Request, res: Response): Promise<void>
     }
 
     const imageList = Array.isArray(photos) ? photos : [];
-    const primaryImage = imageList[0] || formData.photo || formData.imageUrl || "";
+    // ফ্রন্টএন্ড থেকে আসা জেনারেটেড পোস্টারের ছবিটিকে প্রাইমারি ইমেজ হিসেবে সেট করুন
+    const finalPosterImage = generatedImageUrl || imageList[0] || "";
 
     const poster = await Poster.create({
       userId: cleanUserId,
@@ -506,7 +509,8 @@ app.post("/api/posters/save", async (req: Request, res: Response): Promise<void>
       occasionType,
       headlineText,
       images: imageList,
-      generatedImageUrl: primaryImage,
+      generatedImageUrl: finalPosterImage, // এখানে আসল পোস্টারের ছবি সেভ হবে
+      layoutTheme: theme, // থিম বা স্টাইল সেভ হবে যাতে আলাদা করা যায়
       aiModel: "user-saved-poster",
       status: "completed",
       createdAt: createdAt ? new Date(createdAt) : new Date(),
@@ -522,6 +526,7 @@ app.post("/api/posters/save", async (req: Request, res: Response): Promise<void>
         occasionType: poster.occasionType,
         images: poster.images,
         generatedImageUrl: poster.generatedImageUrl,
+        layoutTheme: poster.layoutTheme,
         createdAt: poster.createdAt,
       },
     });
