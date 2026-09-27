@@ -14,15 +14,18 @@
   "dependencies": {
     "@google/genai": "^2.24.0",
     "cloudinary": "^2.11.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^18.0.3",
     "express": "^5.2.1",
+    "jose": "^6.2.12",
     "jose-cjs": "^6.2.3",
     "mongodb": "^7.6.0",
     "mongoose": "^9.10.2",
     "multer": "^2.4.0"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.2.0",

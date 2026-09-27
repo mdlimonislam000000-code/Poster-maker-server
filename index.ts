@@ -4,38 +4,45 @@ import express, { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import multer from "multer";
+import cookieParser from "cookie-parser"; // কুকি রিড করার জন্য
 import { v2 as cloudinary } from "cloudinary";
 import { GoogleGenAI } from "@google/genai";
 import { Poster } from "./models/Poster";
 import { Template } from "./models/Tamplate";
-import { createRemoteJWKSet, jwtVerify } from "jose-cjs";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const JWKS = createRemoteJWKSet(
-  new URL ('http://localhost:3000/api/auth/jwks')
-)
 const verifyJwtToken = async (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader) {
-    return res.status(401).json({ message: "Unauthorized: No auth header" });
+  try {
+    let token = "";
+
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+
+    if (!token && req.cookies) {
+      token = req.cookies['better-auth.session_token'] || req.cookies['session_token'] || req.cookies['token'];
+    }
+
+    next(); 
+  } catch (err: any) {
+    console.error("Verification failed:", err?.message || err);
+    return res.status(401).json({ message: "Unauthorized: Invalid token" });
   }
-  
-  const token = authHeader?.split(" ")[1];
-  if (!token) {
-    return res.status(401).json({ message: "Unauthorized: No token found" });
-  }}
+};
 
 app.use(
   cors({
-    origin: true,
-    credentials: true,
+    origin: process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:3000",
+    credentials: true, 
   })
 );
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser()); 
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -152,7 +159,7 @@ app.get("/", (_req: Request, res: Response): void => {
   });
 });
 
-app.get("/api/templates", verifyJwtToken,  async (_req: Request, res: Response): Promise<void> => {
+app.get("/api/templates", verifyJwtToken, async (_req: Request, res: Response): Promise<void> => {
   try {
     const templates = await Template.find({ isActive: true }).sort({ createdAt: -1 });
     res.status(200).json({
@@ -191,7 +198,7 @@ app.get("/api/templates/user/:userId", verifyJwtToken, async (req: Request, res:
     });
     
   } catch (error: any) {
-    console.error(" Get templates by user error:", error?.message || error);
+    console.error("Get templates by user error:", error?.message || error);
     res.status(500).json({
       success: false,
       message: error?.message || "Failed to fetch templates",
@@ -264,7 +271,7 @@ app.delete("/api/templates/:id", verifyJwtToken, async (req: Request, res: Respo
       message: "Template deleted successfully",
     });
   } catch (error: any) {
-    console.error("❌ Delete template error:", error);
+    console.error(" Delete template error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to delete template",
@@ -281,8 +288,6 @@ app.post("/api/upload", upload.single("image"), async (req: Request, res: Respon
       });
       return;
     }
-
-    console.log("📤 Uploading user photo to Cloudinary:", req.file.originalname);
 
     const result = await new Promise<any>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
@@ -308,7 +313,7 @@ app.post("/api/upload", upload.single("image"), async (req: Request, res: Respon
       publicId: result.public_id,
     });
   } catch (error: any) {
-    console.error("❌ Upload error:", error?.message || error);
+    console.error(" Upload error:", error?.message || error);
     res.status(500).json({
       success: false,
       message: error?.message || "Image upload failed",
@@ -324,7 +329,7 @@ app.get("/api/posters", async (_req: Request, res: Response): Promise<void> => {
       data: posters,
     });
   } catch (error: any) {
-    console.error("❌ Get posters error:", error);
+    console.error(" Get posters error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch posters",
@@ -354,7 +359,7 @@ app.get("/api/users/:userId/posters", verifyJwtToken, async (req: Request, res: 
       data: posters,
     });
   } catch (error: any) {
-    console.error("❌ Get user posters error:", error?.message || error);
+    console.error(" Get user posters error:", error?.message || error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch user posters",
@@ -380,7 +385,7 @@ app.get("/api/posters/:id", verifyJwtToken, async (req: Request, res: Response):
       data: poster,
     });
   } catch (error: any) {
-    console.error("❌ Get poster error:", error);
+    console.error(" Get poster error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch poster",
@@ -472,7 +477,7 @@ app.post("/api/posters/generate", async (req: Request, res: Response): Promise<v
       },
     });
   } catch (error: any) {
-    console.error("❌ Poster generation error:", error?.message || error);
+    console.error(" Poster generation error:", error?.message || error);
     res.status(500).json({
       success: false,
       message: error?.message || "Failed to generate poster",
@@ -480,9 +485,8 @@ app.post("/api/posters/generate", async (req: Request, res: Response): Promise<v
   }
 });
 
-app.post("/api/posters/save", verifyJwtToken , async (req: Request, res: Response): Promise<void> => {
+app.post("/api/posters/save", verifyJwtToken, async (req: Request, res: Response): Promise<void> => {
   try {
-
     const { userId, formData, photos, generatedImageUrl, layoutTheme, createdAt } = req.body;
 
     if (typeof userId !== "string" || !userId.trim()) {
@@ -513,7 +517,6 @@ app.post("/api/posters/save", verifyJwtToken , async (req: Request, res: Respons
     }
 
     const imageList = Array.isArray(photos) ? photos : [];
-    // ফ্রন্টএন্ড থেকে আসা জেনারেটেড পোস্টারের ছবিটিকে প্রাইমারি ইমেজ হিসেবে সেট করুন
     const finalPosterImage = generatedImageUrl || imageList[0] || "";
 
     const poster = await Poster.create({
@@ -525,8 +528,8 @@ app.post("/api/posters/save", verifyJwtToken , async (req: Request, res: Respons
       occasionType,
       headlineText,
       images: imageList,
-      generatedImageUrl: finalPosterImage, // এখানে আসল পোস্টারের ছবি সেভ হবে
-      layoutTheme: theme, // থিম বা স্টাইল সেভ হবে যাতে আলাদা করা যায়
+      generatedImageUrl: finalPosterImage,
+      layoutTheme: theme,
       aiModel: "user-saved-poster",
       status: "completed",
       createdAt: createdAt ? new Date(createdAt) : new Date(),
@@ -547,7 +550,7 @@ app.post("/api/posters/save", verifyJwtToken , async (req: Request, res: Respons
       },
     });
   } catch (error: any) {
-    console.error("❌ Save poster error:", error?.message || error);
+    console.error(" Save poster error:", error?.message || error);
     res.status(500).json({
       success: false,
       message: error?.message || "Failed to save poster",
@@ -573,7 +576,7 @@ app.delete("/api/posters/:id", verifyJwtToken, async (req: Request, res: Respons
       message: "Poster deleted successfully",
     });
   } catch (error: any) {
-    console.error("❌ Delete poster error:", error);
+    console.error(" Delete poster error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to delete poster",
@@ -603,13 +606,13 @@ async function startServer() {
     }
 
     await mongoose.connect(mongoUri);
-    console.log(" MongoDB connected successfully");
+    console.log("📦 MongoDB connected successfully");
 
     app.listen(Number(PORT), () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
     });
   } catch (error) {
-    console.error(" Server startup failed:", error);
+    console.error("❌ Server startup failed:", error);
     process.exit(1);
   }
 }
