@@ -16,14 +16,16 @@ const PORT = process.env.PORT || 5000;
 const JWKS = createRemoteJWKSet(
   new URL ('http://localhost:3000/api/auth/jwks')
 )
-
 const verifyJwtToken = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    next();
-  } catch (error: any) {
-    return res.status(403).json({ message: "Forbidden: Invalid Token" });
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) {
+    return res.status(401).json({ message: "Unauthorized: No auth header" });
   }
-};
+  
+  const token = authHeader?.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized: No token found" });
+  }}
 
 app.use(
   cors({
@@ -150,7 +152,7 @@ app.get("/", (_req: Request, res: Response): void => {
   });
 });
 
-app.get("/api/templates", async (_req: Request, res: Response): Promise<void> => {
+app.get("/api/templates", verifyJwtToken,  async (_req: Request, res: Response): Promise<void> => {
   try {
     const templates = await Template.find({ isActive: true }).sort({ createdAt: -1 });
     res.status(200).json({
@@ -158,7 +160,7 @@ app.get("/api/templates", async (_req: Request, res: Response): Promise<void> =>
       data: templates,
     });
   } catch (error: any) {
-    console.error("❌ Get templates error:", error);
+    console.error(" Get templates error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch templates",
@@ -166,7 +168,7 @@ app.get("/api/templates", async (_req: Request, res: Response): Promise<void> =>
   }
 });
 
-app.get("/api/templates/user/:userId", async (req: Request, res: Response): Promise<void> => {
+app.get("/api/templates/user/:userId", verifyJwtToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const { userId } = req.params;
 
@@ -197,7 +199,7 @@ app.get("/api/templates/user/:userId", async (req: Request, res: Response): Prom
   }
 });
 
-app.post("/api/templates", async (req: Request, res: Response): Promise<void> => {
+app.post("/api/templates", verifyJwtToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const {
       title,
@@ -244,7 +246,7 @@ app.post("/api/templates", async (req: Request, res: Response): Promise<void> =>
   }
 });
 
-app.delete("/api/templates/:id", async (req: Request, res: Response): Promise<void> => {
+app.delete("/api/templates/:id", verifyJwtToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const id = req.params.id;
     const template = await Template.findByIdAndDelete(id);
@@ -330,7 +332,7 @@ app.get("/api/posters", async (_req: Request, res: Response): Promise<void> => {
   }
 });
 
-app.get("/api/users/:userId/posters", async (req: Request, res: Response): Promise<void> => {
+app.get("/api/users/:userId/posters", verifyJwtToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const rawUserId = req.params.userId;
 
@@ -360,7 +362,7 @@ app.get("/api/users/:userId/posters", async (req: Request, res: Response): Promi
   }
 });
 
-app.get("/api/posters/:id", async (req: Request, res: Response): Promise<void> => {
+app.get("/api/posters/:id", verifyJwtToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const id = req.params.id;
     const poster = await Poster.findById(id);
@@ -553,7 +555,7 @@ app.post("/api/posters/save", verifyJwtToken , async (req: Request, res: Respons
   }
 });
 
-app.delete("/api/posters/:id", async (req: Request, res: Response): Promise<void> => {
+app.delete("/api/posters/:id", verifyJwtToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const id = req.params.id;
     const poster = await Poster.findByIdAndDelete(id);
@@ -587,7 +589,7 @@ app.use((_req: Request, res: Response) => {
 });
 
 app.use((error: any, _req: Request, res: Response, _next: NextFunction) => {
-  console.error("❌ Server error:", error);
+  console.error("Server error:", error);
   res.status(500).json({
     success: false,
     message: error?.message || "Internal server error",
@@ -601,13 +603,13 @@ async function startServer() {
     }
 
     await mongoose.connect(mongoUri);
-    console.log("✅ MongoDB connected successfully");
+    console.log(" MongoDB connected successfully");
 
     app.listen(Number(PORT), () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      console.log(`Server running on http://localhost:${PORT}`);
     });
   } catch (error) {
-    console.error("❌ Server startup failed:", error);
+    console.error(" Server startup failed:", error);
     process.exit(1);
   }
 }
