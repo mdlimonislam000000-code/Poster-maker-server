@@ -8,9 +8,22 @@ import { v2 as cloudinary } from "cloudinary";
 import { GoogleGenAI } from "@google/genai";
 import { Poster } from "./models/Poster";
 import { Template } from "./models/Tamplate";
+import { createRemoteJWKSet, jwtVerify } from "jose-cjs";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+const JWKS = createRemoteJWKSet(
+  new URL ('http://localhost:3000/api/auth/jwks')
+)
+
+const verifyJwtToken = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    next();
+  } catch (error: any) {
+    return res.status(403).json({ message: "Forbidden: Invalid Token" });
+  }
+};
 
 app.use(
   cors({
@@ -174,8 +187,9 @@ app.get("/api/templates/user/:userId", async (req: Request, res: Response): Prom
       message: "Templates fetched successfully",
       data: templates,
     });
+    
   } catch (error: any) {
-    console.error("❌ Get templates by user error:", error?.message || error);
+    console.error(" Get templates by user error:", error?.message || error);
     res.status(500).json({
       success: false,
       message: error?.message || "Failed to fetch templates",
@@ -464,9 +478,9 @@ app.post("/api/posters/generate", async (req: Request, res: Response): Promise<v
   }
 });
 
-app.post("/api/posters/save", async (req: Request, res: Response): Promise<void> => {
+app.post("/api/posters/save", verifyJwtToken , async (req: Request, res: Response): Promise<void> => {
   try {
-    // 1. generatedImageUrl এবং layoutTheme রিকোয়েস্ট বডি থেকে রিসিভ করুন
+
     const { userId, formData, photos, generatedImageUrl, layoutTheme, createdAt } = req.body;
 
     if (typeof userId !== "string" || !userId.trim()) {
